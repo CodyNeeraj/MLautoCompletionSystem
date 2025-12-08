@@ -2,6 +2,7 @@
 import requests
 import sys
 import time
+import os
 from pymongo import MongoClient
 
 # ----------------------------
@@ -13,11 +14,15 @@ EMBED_URL = "https://lamhieu-lightweight-embeddings.hf.space/v1/embeddings" # yo
 # ----------------------------
 # mongo config
 # ----------------------------
-MONGO_URI = "mongodb+srv://..."
+URI_PROTOCOL = "mongodb+srv://"
 DB_NAME = "CHANGEME"
 COLL_NAME = "CHANGEME"
 VECTOR_INDEX = "default"     # must match your Atlas vector index name
 VECTOR_LIMIT = 5
+mongo_connection_url = os.getenv("mongo_connection_url")
+user_pass= os.getenv("user_pass")
+user_name=os.getenv("user_name")
+CONN_URL=f"{URI_PROTOCOL}{user_name}:{user_pass}{mongo_connection_url}"
 
 
 # ----------------------------

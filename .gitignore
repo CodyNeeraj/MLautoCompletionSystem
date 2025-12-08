@@ -40,3 +40,4 @@ coverage.xml
 
 # Misc
 *.env
+.env
