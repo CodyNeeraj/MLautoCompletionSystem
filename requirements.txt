@@ -12,6 +12,7 @@ motor==3.7.1
 multidict==6.7.0
 propcache==0.4.1
 pymongo==4.15.5
+python-dotenv==1.2.1
 readchar==4.2.1
 requests==2.32.5
 urllib3==2.6.0
