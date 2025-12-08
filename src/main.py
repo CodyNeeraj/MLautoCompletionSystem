@@ -4,6 +4,7 @@ import sys
 import time
 import os
 from pymongo import MongoClient
+from dotenv import load_dotenv
 
 # ----------------------------
 # external inference endpoints
@@ -14,9 +15,11 @@ EMBED_URL = "https://lamhieu-lightweight-embeddings.hf.space/v1/embeddings" # yo
 # ----------------------------
 # mongo config
 # ----------------------------
+load_dotenv()  # loads variables from .env into os.environ
+
 URI_PROTOCOL = "mongodb+srv://"
-DB_NAME = "CHANGEME"
-COLL_NAME = "CHANGEME"
+DB_NAME = "MLautoCompletionSystem"
+COLL_NAME = "embeddings-collection"
 VECTOR_INDEX = "default"     # must match your Atlas vector index name
 VECTOR_LIMIT = 5
 mongo_connection_url = os.getenv("mongo_connection_url")
@@ -42,7 +45,8 @@ def embed(text: str):
 
     r = requests.post(EMBED_URL, headers=headers, json=json_data)
     r.raise_for_status()
-    return r.json()["data"]["embedding"]
+    # print(r.json())
+    return r.json()["data"][0]["embedding"]
 
 # def llm_suggest(text: str, k: int = 3):
 #     try:
@@ -55,7 +59,7 @@ def embed(text: str):
 # ----------------------------
 # mongo helpers
 # ----------------------------
-client = MongoClient(MONGO_URI)
+client = MongoClient(CONN_URL)
 coll = client[DB_NAME][COLL_NAME]
 
 def vector_query(vec):
@@ -73,6 +77,7 @@ def vector_query(vec):
             "$project": {
                 "_id": 0,
                 "text": 1,
+                "embedding": 1,  # include the vector
                 "score": {"$meta": "vectorSearchScore"}
             }
         }
@@ -132,129 +137,128 @@ if __name__ == "__main__":
 
 # or realtime char by char (no return detection) then add below one
 
-from readchar import readchar
-import threading
+# from readchar import readchar
+# import threading
 
-buffer = ""
-last = time.time()
+# buffer = ""
+# last = time.time()
 
-def loop():
-    global buffer, last
-    while True:
-        c = readchar()
-        if c == '\n':
-            print()  # newline
-            handle(buffer)
-            buffer = ""
-        else:
-            buffer += c
-            now = time.time()
-            if now - last > 0.25:   # 250ms debounce
-                handle(buffer)
-            last = now
+# def loop():
+#     global buffer, last
+#     while True:
+#         c = readchar()
+#         if c == '\n':
+#             print()  # newline
+#             handle(buffer)
+#             buffer = ""
+#         else:
+#             buffer += c
+#             now = time.time()
+#             if now - last > 0.25:   # 250ms debounce
+#                 handle(buffer)
+#             last = now
 
 
 
 #  for doing this more sort of in asynchornous way then check below
-#!/usr/bin/env python3
-import asyncio
-import aiohttp
-import aioconsole
-from motor.motor_asyncio import AsyncIOMotorClient
+# import asyncio
+# import aiohttp
+# import aioconsole
+# from motor.motor_asyncio import AsyncIOMotorClient
 
 # ----------------------------
 # external inference endpoints
 # ----------------------------
-EMBED_URL = "http://localhost:8000/embed"
-SUGGEST_URL = "http://localhost:8000/suggest"
+# CONN_URL = "http://localhost:8000/embed"
+# SUGGEST_URL = "http://localhost:8000/suggest"
 
 # ----------------------------
 # mongo config
 # ----------------------------
-MONGO_URI = "mongodb+srv://..."
-DB_NAME = "recs"
-COLL_NAME = "sentences"
-VECTOR_INDEX = "default"
-VECTOR_LIMIT = 5
+# CONN_URL = "mongodb+srv://..."
+# DB_NAME = "recs"
+# COLL_NAME = "sentences"
+# VECTOR_INDEX = "default"
+# VECTOR_LIMIT = 5
 
 # ----------------------------
 # HTTP session (global)
 # ----------------------------
-session = None
+# session = None
 
 # ----------------------------
 # API wrappers (async)
 # ----------------------------
-async def embed(text: str):
-    async with session.post(EMBED_URL, json={"text": text}) as r:
-        r.raise_for_status()
-        data = await r.json()
-        return data["embedding"]
+# async def embed(text: str):
+#     async with session.post(EMBED_URL, json={"text": text}) as r:
+#         r.raise_for_status()
+#         data = await r.json()
+#         return data["embedding"]
 
-async def suggest(text: str, k: int = 3):
-    try:
-        async with session.post(SUGGEST_URL, json={"text": text, "k": k}) as r:
-            r.raise_for_status()
-            data = await r.json()
-            return data.get("sentences", [])
-    except:
-        return []
+# async def suggest(text: str, k: int = 3):
+#     try:
+#         async with session.post(SUGGEST_URL, json={"text": text, "k": k}) as r:
+#             r.raise_for_status()
+#             data = await r.json()
+#             return data.get("sentences", [])
+#     except:
+#         return []
 
 # ----------------------------
 # Atlas wrappers (async)
 # ----------------------------
-async def vector_query(coll, vec):
-    pipeline = [
-        {
-            "$vectorSearch": {
-                "index": VECTOR_INDEX,
-                "path": "embedding",
-                "queryVector": vec,
-                "numCandidates": VECTOR_LIMIT * 20,
-                "limit": VECTOR_LIMIT
-            }
-        },
-        {
-            "$project": {
-                "_id": 0,
-                "text": 1,
-                "score": {"$meta": "vectorSearchScore"}
-            }
-        }
-    ]
-    return [d async for d in coll.aggregate(pipeline)]
+# async def vector_query(coll, vec):
+#     pipeline = [
+#         {
+#             "$vectorSearch": {
+#                 "index": VECTOR_INDEX,
+#                 "path": "embedding",
+#                 "queryVector": vec,
+#                 "numCandidates": VECTOR_LIMIT * 20,
+#                 "limit": VECTOR_LIMIT
+#             }
+#         },
+#         {
+#             "$project": {
+#                 "_id": 0,
+#                 "text": 1,
+#                 "score": {"$meta": "vectorSearchScore"}
+#             }
+#         }
+#     ]
+#     return [d async for d in coll.aggregate(pipeline)]
 
 # optional DB memory growth
-async def store_sentence(coll, text, emb):
-    await coll.insert_one({
-        "text": text,
-        "embedding": emb,
-        "ts": asyncio.get_event_loop().time()
-    })
+# async def store_sentence(coll, text, emb):
+#     await coll.insert_one({
+#         "text": text,
+#         "embedding": emb,
+#         "ts": asyncio.get_event_loop().time()
+#     })
 
 # ----------------------------
 # unified handler
 # ----------------------------
-async def handle(seed, coll):
-    # run embedding + suggestions concurrently
-    emb_task = asyncio.create_task(embed(seed))
-    sug_task = asyncio.create_task(suggest(seed, 3))
-    emb = await emb_task
-    llm_hits = await sug_task
+# async def handle(seed, coll):
+#     # run embedding + suggestions concurrently
+#     emb_task = asyncio.create_task(embed(seed))
+#     sug_task = asyncio.create_task(suggest(seed, 3))
+#     emb = await emb_task
+#     llm_hits = await sug_task
 
-    # run vector search
-    db_hits = await vector_query(coll, emb)
+#     # run vector search
+#     db_hits = await vector_query(coll, emb)
 
-    # print results
-    print("\n--- DB matches ---")
-    for d in db_hits:
-        print(f"[DB] {d['text']}")
+#     # print results
+#     print("\n--- DB matches ---")
+#     for d in db_hits:
+#         print(f"[DB] {d['text']}")
 
-    print("\n--- Generated suggestions ---")
-    for s in llm_hits:
-        print(f"[GEN] {s}")
+#     print("\n--- Generated suggestions ---")
+#     for s in llm_hits:
+#         print(f"[GEN] {s}")
 
-    print()
+#     print()
 
     # optional: store memory
     # await store_sentence(coll, seed, emb)
@@ -262,29 +266,30 @@ async def handle(seed, coll):
 # ----------------------------
 # main async loop
 # ----------------------------
-async def main():
-    global session
+# async def main():
+#     global session
 
-    session = aiohttp.ClientSession()
+#     session = aiohttp.ClientSession()
 
-    client = AsyncIOMotorClient(MONGO_URI)
-    coll = client[DB_NAME][COLL_NAME]
+#     client = AsyncIOMotorClient(CONN_URL)
+#     coll = client[DB_NAME][COLL_NAME]
 
-    print("Async realtime sentence recommender (bge-m3 + Atlas)")
-    print("Type a word → Enter\n")
+#     print("Async realtime sentence recommender (bge-m3 + Atlas)")
+#     print("Type a word → Enter\n")
 
-    # non-blocking console: aioconsole
-    while True:
-        seed = await aioconsole.ainput("seed> ")
-        seed = seed.strip()
-        if not seed:
-            continue
-        try:
-            await handle(seed, coll)
-        except KeyboardInterrupt:
-            break
+#     # non-blocking console: aioconsole
+#     while True:
+#         seed = await aioconsole.ainput("seed> ")
+#         seed = seed.strip()
+#         if not seed:
+#             continue
+#         try:
+#             await handle(seed, coll)
+#         except KeyboardInterrupt:
+#             break
 
-    await session.close()
+#     await session.close()
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# if __name__ == "__main__":
+#     asyncio.run(main())
+
