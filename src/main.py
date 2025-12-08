@@ -62,12 +62,18 @@ def embed(text: str):
 client = MongoClient(CONN_URL)
 coll = client[DB_NAME][COLL_NAME]
 
+# Vector aggregation search on a MongoDB collection using a vector index
+# (or general indexes) via a pipeline. This scans a given embedding array
+# using an upstream-created vector index. The 'index' parameter specifies
+# the name of the vector index, and the 'path' parameter specifies the
+# document field over which the index was created.
+
 def vector_query(vec):
     pipeline = [
         {
             "$vectorSearch": {
-                "index": VECTOR_INDEX,
-                "path": "embedding",
+                "index": "vector_index", #name of the created index here
+                "path": "embedding", #name of document field
                 "queryVector": vec,
                 "numCandidates": VECTOR_LIMIT * 20,
                 "limit": VECTOR_LIMIT
@@ -77,11 +83,12 @@ def vector_query(vec):
             "$project": {
                 "_id": 0,
                 "text": 1,
-                "embedding": 1,  # include the vector
+                "embedding": 1,  # include the document field to be scanned
                 "score": {"$meta": "vectorSearchScore"}
             }
         }
     ]
+    # print(list(coll.aggregate(pipeline)))
     return list(coll.aggregate(pipeline))
 
 # ----------------------------
