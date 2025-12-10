@@ -57,6 +57,7 @@ def embed(text: str):
     # print(r.json())
     return r.json()["data"][0]["embedding"]
 
+# Embed Worker implementation to run under a thread instance ran below and do the embedding operation
 def embed_worker():
     while True:
         line = embed_q.get()
@@ -74,9 +75,9 @@ def embed_worker():
             print("embed error:", e)
         finally:
             time.sleep(RATE_LIMIT)  # respect rate limit
-            embed_q.task_done()
+            embed_q.task_done() # marking the current item in queue done 
 
-
+# Embed database Worker implementation to run under a thread instance ran below and do the database insert operation (parrallely) under the multiple threads
 def db_worker():
     while True:
         item = store_q.get()
@@ -92,14 +93,16 @@ def db_worker():
         finally:
             store_q.task_done()
 
-def db_worker_inner(item):
-    text, vec = item
-    try:
-        store_sentence(text, vec)
-        print(f"[DB] stored: {text[:50]}")
-    except Exception as e:
-        print("db error:", e)
+# def db_worker_inner(item):
+#     text, vec = item
+#     try:
+#         store_sentence(text, vec)
+#         print(f"[DB] stored: {text[:50]}")
+#     except Exception as e:
+#         print("db error:", e)
 
+
+# create threads based on the producer/consumers queues
 def start_workers():
     # one embed worker
     threading.Thread(target=embed_worker, daemon=True).start()
@@ -108,6 +111,8 @@ def start_workers():
     for _ in range(max_workers):
         threading.Thread(target=db_worker, daemon=True).start()
 
+
+# inserting data into input queue for embedding creation
 def bulk_process(avengers_texts_large):
     for line in avengers_texts_large:
         embed_q.put(line)   # fast producer
