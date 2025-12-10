@@ -38,7 +38,7 @@ progress_bar = None
 
 
 # ----------------------------
-# api helpers
+# 3rd Party embedding api from huggingface space
 # ----------------------------
 def embed(text: str):
     # custom headers applicable for above inference api
@@ -113,7 +113,7 @@ def bulk_process(avengers_texts_large):
         embed_q.put(line)   # fast producer
 
 # ----------------------------
-# mongo helpers
+# Initilization of Database/Collection
 # ----------------------------
 client = MongoClient(CONN_URL)
 coll = client[DB_NAME][COLL_NAME]
@@ -148,7 +148,7 @@ def vector_query(vec):
     return list(coll.aggregate(pipeline))
 
 # ----------------------------
-# storing to atlas (memory-building)
+# storing embedding to atlas (for memory-building)
 # ----------------------------
 def store_sentence(text: str, emb):
     coll.insert_one({
@@ -330,13 +330,13 @@ avengers_texts_large = [
             "Doctor Strange advises the team on mystical and cosmic phenomena."
         ]
 
-
-def bulk_process_threading(line):
-    try:
-        processed_vector = embed(line) #creating embeddings
-        store_sentence(line, processed_vector) # inserting the data
-    except Exception as e:
-        print(e)       
+# Non usable Sequential function
+# def bulk_process_threading(line):
+#     try:
+#         processed_vector = embed(line) #creating embeddings
+#         store_sentence(line, processed_vector) # inserting the data
+#     except Exception as e:
+#         print(e)       
 
 
 # ----------------------------
@@ -348,7 +348,7 @@ def main():
     print("Starting the bulk insertion operation")
 
     total_items = len(avengers_texts_large)
-    progress_bar = tqdm(total=total_items, desc="Embedding", ncols=80)
+    progress_bar = tqdm(total=total_items, desc="Embedding", ncols=100)
 
     start_time = time.time()
 
