@@ -37,12 +37,15 @@ cursor = coll.aggregate([
     {"$match": {"count": {"$gt": 1}}}
 ])
 
+# print(f"Duplicate Entries: {list(cursor)}")
 total_deleted = 0
 
 for group in cursor:
     # keep first, delete the rest
     dup_ids = group["ids"][1:]
+    print(f"Duplicate ids: {dup_ids}")
     for chunk in batch(dup_ids, BATCH_SIZE):
+        print(f"Deleting the Entry: {chunk}")
         result = coll.delete_many({"_id": {"$in": chunk}})
         total_deleted += result.deleted_count
 

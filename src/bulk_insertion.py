@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import requests
 import sys
 import time
@@ -31,7 +30,7 @@ user_pass= os.getenv("user_pass")
 user_name=os.getenv("user_name")
 CONN_URL=f"{URI_PROTOCOL}{user_name}:{user_pass}{mongo_connection_url}"
 max_workers=25
-RATE_LIMIT = 0   # 500 ms
+RATE_LIMIT = 3   # 500 ms
 embed_q = queue.Queue()
 store_q = queue.Queue()
 progress_bar = None
