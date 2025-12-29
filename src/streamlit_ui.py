@@ -20,7 +20,6 @@ CONN_URL=f"{URI_PROTOCOL}{user_name}:{user_pass}{mongo_connection_url}"
 @st.cache_resource
 def init_connection():
     load_dotenv(find_dotenv()) 
-    print(CONN_URL)
     client = MongoClient(CONN_URL)
     return client
 
