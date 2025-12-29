@@ -5,6 +5,7 @@ import queue
 import threading
 from tqdm import tqdm
 import os
+import embedding_generator
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed # !!! only use if using bulk insertion and processing of vectors
@@ -12,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed # !!! only use i
 # ----------------------------
 # external inference endpoints
 # ----------------------------
-EMBED_URL = "https://lamhieu-lightweight-embeddings.hf.space/v1/embeddings" # your bge-m3 embed API
+EMBED_URL = "<ENTER YOUR API HERE>" # if connecting using any api
 # SUGGEST_URL = "http://localhost:8000/suggest" # optional
 
 # ----------------------------
@@ -30,31 +31,32 @@ user_pass= os.getenv("user_pass")
 user_name=os.getenv("user_name")
 CONN_URL=f"{URI_PROTOCOL}{user_name}:{user_pass}{mongo_connection_url}"
 max_workers=25
-RATE_LIMIT = 3   # 500 ms
+RATE_LIMIT = 0   # 500 ms
 embed_q = queue.Queue()
 store_q = queue.Queue()
 progress_bar = None
-
 
 # ----------------------------
 # 3rd Party embedding api from huggingface space
 # ----------------------------
 def embed(text: str):
-    # custom headers applicable for above inference api
-    headers = {
-        'accept': 'application/json',
-        'Content-Type': 'application/json',
-    }
+    # # custom headers applicable for above inference api
+    # headers = {
+    #     'accept': 'application/json',
+    #     'Content-Type': 'application/json',
+    # }
 
-    json_data = {
-        'model': 'bge-m3',
-        'input': text,
-    }
+    # json_data = {
+    #     'model': 'bge-m3',
+    #     'input': text,
+    # }
 
-    r = requests.post(EMBED_URL, headers=headers, json=json_data)
-    r.raise_for_status()
-    # print(r.json())
-    return r.json()["data"][0]["embedding"]
+    # r = requests.post(EMBED_URL, headers=headers, json=json_data)
+    # r.raise_for_status()
+    # # print(r.json())
+    # return r.json()["data"][0]["embedding"]
+    return embedding_generator.get_embedding(text)
+
 
 # Embed Worker implementation to run under a thread instance ran below and do the embedding operation
 def embed_worker():
@@ -160,8 +162,6 @@ def store_sentence(text: str, emb):
         "embedding": emb,
         "ts": time.time()
     })
-
-
 
 avengers_texts_large = [
             "Iron Man builds a new suit to combat threats.",
