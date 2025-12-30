@@ -4,7 +4,7 @@ import time
 import queue
 import threading
 from tqdm import tqdm
-import os
+import os, json
 import embedding_generator
 from pymongo import MongoClient
 from dotenv import load_dotenv
@@ -39,7 +39,7 @@ progress_bar = None
 _bulk_load_texts = None
 
 # ----------------------------
-# 3rd Party embedding api from huggingface space
+# 3rd Party embedding api from huggingface space or local generation
 # ----------------------------
 def embed(text: str):
     # # custom headers applicable for above inference api
@@ -58,7 +58,6 @@ def embed(text: str):
     # # print(r.json())
     # return r.json()["data"][0]["embedding"]
     return embedding_generator.get_embedding(text)
-
 
 # Embed Worker implementation to run under a thread instance ran below and do the embedding operation
 def embed_worker():
@@ -88,22 +87,13 @@ def db_worker():
             break
         try:
             text, vec = item
-            store_sentence(text, vec)
+            # store_sentence(text, vec) # uncomment me to start storing
             # optional logging:
             # print(f"[DB] stored: {text[:40]}")
         except Exception as e:
             print("db error:", e)
         finally:
             store_q.task_done()
-
-# def db_worker_inner(item):
-#     text, vec = item
-#     try:
-#         store_sentence(text, vec)
-#         print(f"[DB] stored: {text[:50]}")
-#     except Exception as e:
-#         print("db error:", e)
-
 
 # create threads based on the producer/consumers queues
 def start_workers():
@@ -114,9 +104,8 @@ def start_workers():
     for _ in range(max_workers):
         threading.Thread(target=db_worker, daemon=True).start()
 
-
 # inserting file loaded data into input queue for embedding creation
-def ingest_texts():
+def ingest_newline_texts():
     global _bulk_load_texts
 
     # Gets the script's own directory and appends the relative path
@@ -130,10 +119,53 @@ def ingest_texts():
 
         for line in _bulk_load_texts:
             embed_q.put(line)   # fast producer
-    
+
     except FileNotFoundError:
         print(f"Error: The file was not found at {file_path}. "
               "Ensure you are running the script from the parent folder of 'raw_text'.")
+
+def ingest_json_and_mark_processed():
+    global _bulk_load_texts
+    
+    script_dir = Path(__file__).parent
+    file_path = script_dir / "raw_text" / "news_queue.json"    
+    if not file_path.exists():
+        print(f"File not found: {file_path}")
+        return
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            print("Error: File content is not a JSON dictionary.")
+            return
+
+        new_items_found = False
+        
+        # 2. Iterate through each news object (the values)
+        for article_id, article_data in data.items():
+            # Check if processed is explicitly False (or missing)
+            if article_data.get("processed") is False:
+                description = article_data.get("description", "")
+                if description:
+                    # Put into your embedding queue for the MX350 threads
+                    embed_q.put(description.strip())
+                    # Mark as processed in our memory object
+                    article_data["processed"] = True
+                    new_items_found = True
+
+        # 3. Save the updated dictionary back to the file
+        if new_items_found: # uncomment me as well
+            # with open(file_path, "w", encoding="utf-8") as f:
+            #     json.dump(data, f, indent=4)
+            print("Successfully queued new descriptions and updated file to 'processed: true'.")
+        else:
+            print("No new unprocessed articles found.")
+
+    except json.JSONDecodeError:
+        print("Error: Could not decode JSON. Ensure the file is not empty or corrupted.")
+    except Exception as e:
+        print(f"Ingestion Error: {e}")
 
 # ----------------------------
 # Initilization of Database/Collection
@@ -203,7 +235,10 @@ def main():
     start_time = time.time()
 
     start_workers()
-    ingest_texts()
+
+    # uncomment function based on need
+    # ingest_newline_texts()
+    ingest_json_and_mark_processed()
 
     # wait
     embed_q.join()
